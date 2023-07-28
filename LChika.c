@@ -14,67 +14,47 @@
 
 
 #define DRIVER_NAME "MyDevice_NAME"
-// #define DRIVER_MAJOR 238
-// #define DRIVER_MINOR 1
-// #define DRIVER_MINOR_BASE 0
-#define NUM_BUFFER 256
-static const unsigned int MAJOR_NUMBER = 238;
-// static const unsigned int MINOR_BASE = 0;
-// static const unsigned int MINOR_NUM  = 2;   /* マイナー番号は 0 ~ 1 */
-
-// static char stored_value[NUM_BUFFER];
-uint8_t blight_status;
+#define MAJOR_NUMBER 238
 
 #define DATA_PIN 23
 #define CLOCK_PIN 24
 #define LED_NUM 8
-
-/* このデバイスドライバのメジャー番号(動的に決める) */
-// static unsigned int mydevice_major;
-
-/* キャラクタデバイスのオブジェクト */
-// static struct cdev mydevice_cdev;
 
 void send1bit(unsigned pin, int value);
 void set_leds(unsigned rgbas[][4]);
 void controle_device(uint8_t status);
 int init_gpio(void);
 
+uint8_t blight_status;
+
 /* open時に呼ばれる関数 */
 static int myDevice_open(struct inode *inode, struct file *file) {
-    printk("myDevice_open_v12\n");
-    //1
+    printk("myDevice_open\n");
     return 0;
-    //
 }
 
 /* close時に呼ばれる関数 */
 static int myDevice_close(struct inode *inode, struct file *file) {
-    printk("myDevice_close_v12\n");
+    printk("myDevice_close\n");
 
-    //1
     return 0;
-    //
 }
 
 /* read時に呼ばれる関数 */
 static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) {
-    printk("mydevice_read_v12");
+    printk("mydevice_read");
 
-    //4
     if (copy_to_user(buf, &blight_status, count) != 0) {
         return -EFAULT;
     }
     return count;
-    //
 }
 
 /* write時に呼ばれる関数 */
 static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
-    printk("mydevice_write_v12");
+    printk("mydevice_write");
 
-    //4
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
         return -EFAULT;
@@ -83,7 +63,6 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
     blight_status = receive;
     controle_device(blight_status);
     return count;
-    //
 }
 
 /* 各種システムコールに対応するハンドラテーブル */
@@ -97,17 +76,7 @@ struct file_operations s_myDevice_fops = {
 /* ロード(insmod)時に呼ばれる関数 */
 static int __init myDevice_init(void)
 {
-    printk("myDevice_init14\n");
-    // struct cdev *cdev;
-    // dev_t dev = MKDEV(MAJOR_NUMBER, 0);
-    // register_chrdev_region(dev, 1, DRIVER_NAME);
-    // // int err;
-    // // cdev = cdev_alloc();
-    // // cdev->ops = &s_myDevice_fops;
-    // // err = cdev_add(cdev, dev, 1);
-    // struct cdev cdev;
-    // cdev_init(&cdev, &s_myDevice_fops);
-    // int err = cdev_add(&cdev, dev, 1);
+    printk("myDevice_init\n");
     register_chrdev(MAJOR_NUMBER, DRIVER_NAME, &s_myDevice_fops);
     return 0;
 }
@@ -117,16 +86,6 @@ static void __exit myDevice_exit(void)
 {
     printk("myDevice_exit\n");
     unregister_chrdev(MAJOR_NUMBER, DRIVER_NAME);
-
-//quiita参考
-    // dev_t dev = MKDEV(mydevice_major, DRIVER_MINOR_BASE);
-
-    // /* 5. このデバイスドライバ(cdev)をカーネルから取り除く */
-    // cdev_del(&mydevice_cdev);
-
-    // /* 6. このデバイスドライバで使用していたメジャー番号の登録を取り除く */
-    // unregister_chrdev_region(dev, DRIVER_MINOR);
-//
 }
 
 int init_gpio() {
@@ -185,18 +144,7 @@ void controle_device(uint8_t status)
 {
     printk("controle device.\n");
 
-    // if (gpio_is_valid(DATA_PIN) && gpio_is_valid(CLOCK_PIN)) {
-    //     printk("gpio pin is available.\n");
-    //     gpio_request(DATA_PIN, "sysfs");
-    //     gpio_request(CLOCK_PIN, "sysfs");
-    //     gpio_direction_output(DATA_PIN, 0);
-    //     gpio_direction_output(CLOCK_PIN, 0);
     if (init_gpio() > 0) {
-
-        // //begin
-        // for (int i = 0; i < 32; i++) {
-        //     send1bit(DATA_PIN, 0);
-        // }
 
         unsigned rgbas[][4] = {
             {0, 50, 0, 5},
@@ -221,14 +169,7 @@ void controle_device(uint8_t status)
         }
 
         printk("LED is Lighting!\n");
-        // for (int i = 0; i < 10; i++) {
-        //     printk("HIGH!\n");
-        //     set_leds(rgbas);
-        //     msleep(500);
-            
-        //     set_leds(no_colors);
-        //     msleep(500);
-        // }
+
         set_leds(rgbas);
 
     } else {
