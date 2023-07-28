@@ -1,3 +1,9 @@
+/*
+例
+gcc -o test_read test_read.c
+./test_read /dev/device
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 // #include <ctype.h>
