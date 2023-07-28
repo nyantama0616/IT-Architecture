@@ -44,10 +44,26 @@ static int myDevice_close(struct inode *inode, struct file *file) {
 static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) {
     printk("mydevice_read");
 
-    if (copy_to_user(buf, &blight_status, count) != 0) {
+    size_t remaining_bytes = (sizeof blight_status)  - *f_pos;
+
+    if (remaining_bytes == 0) {
+        // 読み込むデータがもうない場合は終了
+        return 0;
+    }
+
+    // 実際に読み込むバイト数を計算
+    size_t bytes_to_read = min(remaining_bytes, count);
+
+    // デバイスからバッファへデータをコピー
+    if (copy_to_user(buf, &blight_status + *f_pos, bytes_to_read)) {
+        // copy_to_userが失敗した場合はエラーを返す
         return -EFAULT;
     }
-    return count;
+
+    // 読み込み位置を更新
+    *f_pos += bytes_to_read;
+
+    return bytes_to_read; // 読み込んだバイト数を返す
 }
 
 /* write時に呼ばれる関数 */
