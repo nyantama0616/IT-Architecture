@@ -24,12 +24,14 @@
 
 void send1bit(unsigned pin, int value);
 void set_led(int pos, uint8_t r, uint8_t g, uint8_t b, uint8_t a); //pos番目のLEDの値を、rgbasにセット
+void on_led(int pos);
+void off_led(int pos);
 void apply_leds(void); //rgbasの値を元に、LEDに適応
 void controle_device(uint8_t status);
 int init_gpio(void);
 
 static struct cdev c_dev[MINOR_NUM]; // キャラクタデバイス構造体
-static uint8_t blight_status;
+static uint8_t blight_status = 0;
 
 static unsigned rgbas[][4] = {
     {0, 0, 0, 0},
@@ -88,13 +90,14 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
 {
     printk("mydevice_write");
     
+    int minor = (int)filp->private_data; // マイナー番号
+
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
         return -EFAULT;
     }
 
-    blight_status = receive;
-    controle_device(blight_status);
+    controle_device(receive);
     return count;
 }
 
@@ -129,6 +132,11 @@ static int __init myDevice_init(void)
 static void __exit myDevice_exit(void)
 {
     printk("myDevice_exit\n");
+
+    for (int i = 0; i < LED_NUM; i++) {
+        off_led(i);
+    }
+    apply_leds();
     
     // デバイスドライバをカーネルから削除
 	for(int i = 0; i < MINOR_NUM; i++){
@@ -165,6 +173,19 @@ void set_led(int pos, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     rgbas[pos][1] = g;
     rgbas[pos][2] = b;
     rgbas[pos][3] = a;
+}
+
+void on_led(int pos) {
+    const u_int8_t n = (LED_NUM - pos - 1);
+    blight_status |= 1 << n;
+    set_led(pos, 30, 0, 30, 5);
+}
+
+void off_led(int pos) {
+    printk("off!\n");
+    const u_int8_t n = (LED_NUM - pos - 1);
+    blight_status &= ~(1 << n);
+    set_led(pos, 0, 0, 0, 0);
 }
 
 void apply_leds() {
@@ -207,9 +228,11 @@ void controle_device(uint8_t status)
         for (int i = 0; i < LED_NUM; i++) {
             int offset = LED_NUM - i - 1;
             if (status & 1 << offset) {
-                set_led(i, 0, 0, 50, 3);
+                // set_led(i, 0, 0, 15, 3);
+                on_led(i);
             } else {
-                set_led(i, 0, 0, 0, 0);
+                // set_led(i, 0, 0, 0, 0);
+                off_led(i);
             }
         }
 
