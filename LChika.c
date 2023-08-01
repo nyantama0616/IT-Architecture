@@ -15,6 +15,8 @@
 
 #define DRIVER_NAME "MyDevice_NAME"
 #define MAJOR_NUMBER 238
+#define MINOR_BASE 0
+#define MINOR_NUM 9
 
 #define DATA_PIN 23
 #define CLOCK_PIN 24
@@ -25,11 +27,14 @@ void set_leds(unsigned rgbas[][4]);
 void controle_device(uint8_t status);
 int init_gpio(void);
 
-uint8_t blight_status;
+static struct cdev c_dev[MINOR_NUM]; // キャラクタデバイス構造体
+static uint8_t blight_status;
 
 /* open時に呼ばれる関数 */
 static int myDevice_open(struct inode *inode, struct file *file) {
     printk("myDevice_open\n");
+    int minor = iminor(inode); // マイナー番号取得
+	file->private_data = (void *)minor; // マイナー番号をwrite、read処理に渡す
     return 0;
 }
 
@@ -93,7 +98,18 @@ struct file_operations s_myDevice_fops = {
 static int __init myDevice_init(void)
 {
     printk("myDevice_init\n");
-    register_chrdev(MAJOR_NUMBER, DRIVER_NAME, &s_myDevice_fops);
+    dev_t dev = MKDEV(MAJOR_NUMBER, MINOR_BASE);
+    register_chrdev_region(dev, MINOR_NUM, DRIVER_NAME); // デバイス番号を確保
+    
+    for(int i = 0; i < MINOR_NUM; i++){
+		cdev_init(&c_dev[i],&s_myDevice_fops); // cdev構造体の初期化とシステムコールハンドラテーブルの登録
+		c_dev[i].owner = THIS_MODULE;
+	}
+    
+    int err = cdev_add(&c_dev[0], dev, MINOR_NUM); // デバイスドライバをカーネルに登録
+	if (err < 0){
+		printk(KERN_INFO "fale to cdev_add\n");
+	}
     return 0;
 }
 
@@ -101,7 +117,15 @@ static int __init myDevice_init(void)
 static void __exit myDevice_exit(void)
 {
     printk("myDevice_exit\n");
-    unregister_chrdev(MAJOR_NUMBER, DRIVER_NAME);
+    
+    // デバイスドライバをカーネルから削除
+	for(int i = 0; i < MINOR_NUM; i++){
+		cdev_del(&c_dev[i]);
+	}
+
+    // デバイスドライバで使用していたメジャー番号の登録を削除
+    dev_t dev = MKDEV(MAJOR_NUMBER, MINOR_BASE);
+	unregister_chrdev_region(dev, MINOR_NUM);
 }
 
 int init_gpio() {
