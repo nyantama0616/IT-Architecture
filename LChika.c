@@ -30,6 +30,7 @@ bool is_led_on(int pos);
 void apply_leds(void); //rgbasの値を元に、LEDに適応
 void controle_device(uint8_t status);
 int init_gpio(void);
+void exit_gpio(void);
 
 static struct cdev c_dev[MINOR_NUM]; // キャラクタデバイス構造体
 static uint8_t blight_status = 0;
@@ -134,6 +135,12 @@ static int __init myDevice_init(void)
 	if (err < 0){
 		printk(KERN_INFO "fale to cdev_add\n");
 	}
+
+    if (init_gpio() < 0) {
+        printk("gpio pin is NOT available!\n");
+        printk("DATA_PIN = %d.\n", gpio_is_valid(DATA_PIN));
+        printk("CLOCK_PIN = %d.\n", gpio_is_valid(CLOCK_PIN));
+    }
     return 0;
 }
 
@@ -155,6 +162,8 @@ static void __exit myDevice_exit(void)
     // デバイスドライバで使用していたメジャー番号の登録を削除
     dev_t dev = MKDEV(MAJOR_NUMBER, MINOR_BASE);
 	unregister_chrdev_region(dev, MINOR_NUM);
+
+    exit_gpio();
 }
 
 int init_gpio() {
@@ -167,6 +176,11 @@ int init_gpio() {
     gpio_direction_output(CLOCK_PIN, 0);
 
     return 1;
+}
+
+void exit_gpio() {
+    gpio_free(DATA_PIN);
+	gpio_free(CLOCK_PIN);
 }
 
 void send1bit(unsigned pin, int value) {
@@ -201,8 +215,7 @@ bool is_led_on(int pos) {
 }
 
 void apply_leds() {
-    //controle each LED
-    //begin
+    //最初に0を32bit送る
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 0);
     }
@@ -226,7 +239,7 @@ void apply_leds() {
         }
     }
 
-    //end
+    //最後に1を32bit送る
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 1);
     }
@@ -236,25 +249,16 @@ void controle_device(uint8_t status)
 {
     printk("controle device.\n");
 
-    if (init_gpio() > 0) {
-        for (int i = 0; i < LED_NUM; i++) {
-            int offset = LED_NUM - i - 1;
-            if (status & 1 << offset) {
-                on_led(i);
-            } else {
-                off_led(i);
-            }
+    for (int i = 0; i < LED_NUM; i++) {
+        int offset = LED_NUM - i - 1;
+        if (status & 1 << offset) {
+            on_led(i);
+        } else {
+            off_led(i);
         }
-
-        printk("LED is Lighting!\n");
-
-        apply_leds();
-
-    } else {
-        printk("gpio pin is NOT available!\n");
-        printk("DATA_PIN = %d.\n", gpio_is_valid(DATA_PIN));
-        printk("CLOCK_PIN = %d.\n", gpio_is_valid(CLOCK_PIN));
     }
+
+    apply_leds();
 }
 
 module_init(myDevice_init);
