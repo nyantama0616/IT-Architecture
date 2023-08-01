@@ -23,12 +23,24 @@
 #define LED_NUM 8
 
 void send1bit(unsigned pin, int value);
-void set_leds(unsigned rgbas[][4]);
+void set_led(int pos, uint8_t r, uint8_t g, uint8_t b, uint8_t a); //pos番目のLEDの値を、rgbasにセット
+void apply_leds(void); //rgbasの値を元に、LEDに適応
 void controle_device(uint8_t status);
 int init_gpio(void);
 
 static struct cdev c_dev[MINOR_NUM]; // キャラクタデバイス構造体
 static uint8_t blight_status;
+
+static unsigned rgbas[][4] = {
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+};
 
 /* open時に呼ばれる関数 */
 static int myDevice_open(struct inode *inode, struct file *file) {
@@ -75,7 +87,7 @@ static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, 
 static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
     printk("mydevice_write");
-
+    
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
         return -EFAULT;
@@ -148,7 +160,14 @@ void send1bit(unsigned pin, int value) {
     ndelay(500);
 }
 
-void set_leds(unsigned rgbas[][4]) {
+void set_led(int pos, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    rgbas[pos][0] = r;
+    rgbas[pos][1] = g;
+    rgbas[pos][2] = b;
+    rgbas[pos][3] = a;
+}
+
+void apply_leds() {
     //controle each LED
     //begin
     for (int i = 0; i < 32; i++) {
@@ -185,32 +204,18 @@ void controle_device(uint8_t status)
     printk("controle device.\n");
 
     if (init_gpio() > 0) {
-
-        unsigned rgbas[][4] = {
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5},
-            {0, 50, 0, 5}
-        };
-
         for (int i = 0; i < LED_NUM; i++) {
             int offset = LED_NUM - i - 1;
             if (status & 1 << offset) {
-                rgbas[i][1] = 50;
-                rgbas[i][3] = 5;
+                set_led(i, 0, 0, 50, 3);
             } else {
-                rgbas[i][1] = 0;
-                rgbas[i][3] = 0;
+                set_led(i, 0, 0, 0, 0);
             }
         }
 
         printk("LED is Lighting!\n");
 
-        set_leds(rgbas);
+        apply_leds();
 
     } else {
         printk("gpio pin is NOT available!\n");
