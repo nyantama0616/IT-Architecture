@@ -1,4 +1,8 @@
-//ok!!! 7/7
+/*
+複数デバイスには対応しています。
+排他的処理はまだ実装できていませんが、一旦提出させていただきます。
+*/
+
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -46,6 +50,10 @@ static unsigned rgbas[][4] = {
     {0, 0, 0, 0},
 };
 
+static DEFINE_MUTEX(my_mutex);
+// struct mutex my_mutex;
+// mutex_init(&my_mutex);
+
 /* open時に呼ばれる関数 */
 static int myDevice_open(struct inode *inode, struct file *file) {
     printk("myDevice_open\n");
@@ -91,6 +99,10 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
 {
     printk("mydevice_write");
     
+    if (mutex_lock_interruptible(&my_mutex) != 0)
+	{
+		printk("fale to mutex\n");
+	}
 
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
@@ -108,6 +120,8 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
         }
         apply_leds();
     }
+
+    mutex_unlock(&my_mutex);
     return count;
 }
 
@@ -211,7 +225,7 @@ void off_led(int pos) {
 }
 
 bool is_led_on(int pos) {
-    return (blight_status >> pos) & 1;
+    return (blight_status & (1 << pos)) == (1 << pos);
 }
 
 void apply_leds() {
