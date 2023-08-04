@@ -15,6 +15,7 @@
 
 #include <linux/gpio.h>
 #include <linux/delay.h>
+#include <linux/mutex.h>
 
 
 #define DRIVER_NAME "MyDevice_NAME"
@@ -98,11 +99,6 @@ static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, 
 static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
     printk("mydevice_write");
-    
-    if (mutex_lock_interruptible(&my_mutex) != 0)
-	{
-		printk("fale to mutex\n");
-	}
 
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
@@ -121,7 +117,6 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
         apply_leds();
     }
 
-    mutex_unlock(&my_mutex);
     return count;
 }
 
@@ -229,6 +224,11 @@ bool is_led_on(int pos) {
 }
 
 void apply_leds() {
+    if (mutex_lock_interruptible(&my_mutex) != 0)
+	{
+		printk("fale to mutex\n");
+	}
+
     //最初に0を32bit送る
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 0);
@@ -257,6 +257,8 @@ void apply_leds() {
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 1);
     }
+
+    mutex_unlock(&my_mutex);
 }
 
 void controle_device(uint8_t status)
