@@ -1,6 +1,6 @@
 /*
-複数デバイスには対応しています。
-排他的処理はまだ実装できていませんが、一旦提出させていただきます。
+複数デバイスファイルに対応。
+排他的処理も実装済み。
 */
 
 #include <linux/init.h>
@@ -52,8 +52,6 @@ static unsigned rgbas[][4] = {
 };
 
 static DEFINE_MUTEX(my_mutex);
-// struct mutex my_mutex;
-// mutex_init(&my_mutex);
 
 /* open時に呼ばれる関数 */
 static int myDevice_open(struct inode *inode, struct file *file) {
@@ -78,6 +76,11 @@ static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, 
 		return 0;
 	}
 
+    if (mutex_lock_interruptible(&my_mutex) != 0)
+	{
+		printk("fale to mutex\n");
+	}
+
     int minor = (int)filp->private_data; // マイナー番号
     u_int8_t returnValue;
 
@@ -92,6 +95,7 @@ static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, 
         return -EFAULT;
     }
 
+    mutex_unlock(&my_mutex);
     return count; // 読み込んだバイト数を返す
 }
 
@@ -99,6 +103,11 @@ static ssize_t myDevice_read(struct file *filp, char __user *buf, size_t count, 
 static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
     printk("mydevice_write");
+
+    if (mutex_lock_interruptible(&my_mutex) != 0)
+	{
+		printk("fale to mutex\n");
+	}
 
     uint8_t receive;
     if (copy_from_user(&receive, buf, count) != 0) {
@@ -117,6 +126,7 @@ static ssize_t myDevice_write(struct file *filp, const char __user *buf, size_t 
         apply_leds();
     }
 
+    mutex_unlock(&my_mutex);
     return count;
 }
 
@@ -208,14 +218,12 @@ void set_led(int pos, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
 }
 
 void on_led(int pos) {
-    const u_int8_t n = (LED_NUM - pos - 1);
-    blight_status |= 1 << n;
+    blight_status |= 1 << pos;
     set_led(pos, 30, 0, 30, 5);
 }
 
 void off_led(int pos) {
-    const u_int8_t n = (LED_NUM - pos - 1);
-    blight_status &= ~(1 << n);
+    blight_status &= ~(1 << pos);
     set_led(pos, 0, 0, 0, 0);
 }
 
@@ -224,17 +232,13 @@ bool is_led_on(int pos) {
 }
 
 void apply_leds() {
-    if (mutex_lock_interruptible(&my_mutex) != 0)
-	{
-		printk("fale to mutex\n");
-	}
-
     //最初に0を32bit送る
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 0);
     }
 
-    for (int i = 0; i < LED_NUM; i++) {
+    // for (int i = 0; i < LED_NUM; i++) {
+    for (int i = LED_NUM - 1; i >= 0; i--) {
         unsigned a = rgbas[i][3] | 0xe0;
         for (int j = 7; j >= 0; j--) {
             send1bit(DATA_PIN, a >> j);
@@ -257,8 +261,6 @@ void apply_leds() {
     for (int i = 0; i < 32; i++) {
         send1bit(DATA_PIN, 1);
     }
-
-    mutex_unlock(&my_mutex);
 }
 
 void controle_device(uint8_t status)
@@ -267,10 +269,10 @@ void controle_device(uint8_t status)
 
     for (int i = 0; i < LED_NUM; i++) {
         int offset = LED_NUM - i - 1;
-        if (status & 1 << offset) {
-            on_led(i);
+        if ((status & 1 << offset) == 1 << offset) {
+            on_led(offset);
         } else {
-            off_led(i);
+            off_led(offset);
         }
     }
 
